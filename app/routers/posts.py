@@ -26,7 +26,8 @@ async def generate_article(
         summary=request.summary,
         requirements=request.requirements,
         post_length=request.post_length,
-        use_api=request.use_api
+        use_api=request.use_api,
+        api_type=request.api_type
     )
     return PostResponse(**result)
 

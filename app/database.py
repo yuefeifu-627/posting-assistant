@@ -33,4 +33,5 @@ def get_db():
 def init_db():
     """初始化数据库"""
     from app.models import Theme, Post, UserPost, StyleProfile
+    from app.models_user import User, UserSession, PasswordResetToken
     Base.metadata.create_all(bind=engine)

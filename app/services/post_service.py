@@ -22,7 +22,7 @@ class PostService:
         self.corpus_repo = CorpusRepository(db)
         self.ai_service = ai_service
 
-    def generate(self, theme_id: int, summary: str, requirements: str = None, post_length: int = None, use_api: bool = False) -> dict:
+    def generate(self, theme_id: int, summary: str, requirements: str = None, post_length: int = None, use_api: bool = False, api_type: str = "glm") -> dict:
         """生成帖子"""
         # 获取主题
         theme = self.theme_repo.get_by_id(theme_id)
@@ -47,6 +47,7 @@ class PostService:
                 requirements=requirements,
                 post_length=target_length,
                 use_api=use_api,
+                api_type=api_type,
                 style_profile=style_profile
             )
         except Exception as e:

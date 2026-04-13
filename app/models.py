@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, JSON
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -39,12 +39,18 @@ class UserPost(Base):
     __tablename__ = "user_posts"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     title = Column(String(255), nullable=True)
     content = Column(Text, nullable=False)
     tags = Column(String(255), nullable=True)
     note = Column(Text, nullable=True)
+    is_public = Column(Boolean, default=False)
+    view_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # 关联用户（可选，因为迁移后可能没有user_id）
+    user = relationship("User", back_populates="user_posts")
 
 
 class StyleProfile(Base):
@@ -52,7 +58,13 @@ class StyleProfile(Base):
     __tablename__ = "style_profile"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     content = Column(Text, nullable=False)  # 风格特征描述
     post_count = Column(Integer, default=0)  # 分析时使用的帖子数量
+    model_used = Column(String(50), nullable=True)
+    confidence_score = Column(String(10), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # 关联用户
+    user = relationship("User", back_populates="style_profiles")

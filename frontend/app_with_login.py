@@ -14,6 +14,110 @@ st.set_page_config(
 )
 
 
+def check_login_status():
+    """检查登录状态 - 使用sessionStorage持久化"""
+    # 检查URL query params中是否有token（登录后通过URL传递）
+    query_params = st.query_params
+    if 'token' in query_params:
+        st.session_state.access_token = query_params['token']
+        # 清理URL参数（不刷新页面）
+        st.query_params.clear()
+        try:
+            response = requests.get(
+                f"{API_BASE_URL}/api/auth/me",
+                headers={"Authorization": f"Bearer {st.session_state.access_token}"},
+                timeout=5
+            )
+            if response.status_code == 200:
+                user_data = response.json()
+                st.session_state.user = user_data
+                # 保存到sessionStorage
+                components.html(f"""
+                <script>sessionStorage.setItem('zeeker_access_token', '{st.session_state.access_token}');</script>
+                """, height=0)
+                return True
+            else:
+                if 'access_token' in st.session_state:
+                    del st.session_state.access_token
+                if 'user' in st.session_state:
+                    del st.session_state.user
+                return False
+        except:
+            if 'access_token' in st.session_state:
+                del st.session_state.access_token
+            if 'user' in st.session_state:
+                del st.session_state.user
+            return False
+
+    # 检查session_state中是否已有token
+    if 'access_token' in st.session_state:
+        try:
+            response = requests.get(
+                f"{API_BASE_URL}/api/auth/me",
+                headers={"Authorization": f"Bearer {st.session_state.access_token}"},
+                timeout=5
+            )
+            if response.status_code == 200:
+                user_data = response.json()
+                st.session_state.user = user_data
+                return True
+            else:
+                if 'access_token' in st.session_state:
+                    del st.session_state.access_token
+                if 'user' in st.session_state:
+                    del st.session_state.user
+                return False
+        except:
+            if 'access_token' in st.session_state:
+                del st.session_state.access_token
+            if 'user' in st.session_state:
+                del st.session_state.user
+            return False
+
+    return False
+
+
+def login(phone: str, password: str):
+    """用户登录"""
+    try:
+        response = requests.post(
+            f"{API_BASE_URL}/api/auth/login",
+            json={"phone": phone, "password": password},
+            timeout=10
+        )
+        if response.status_code == 200:
+            result = response.json()
+            # 将token存入URL query params，触发rerun后Python可读取
+            st.query_params['token'] = result["access_token"]
+            st.rerun()
+        else:
+            error = response.json()
+            return {"success": False, "error": error.get("detail", "登录失败")}
+    except Exception as e:
+        return {"success": False, "error": f"请求失败: {str(e)}"}
+
+
+def logout():
+    """用户登出"""
+    if 'access_token' in st.session_state:
+        try:
+            requests.post(
+                f"{API_BASE_URL}/api/auth/logout",
+                headers={"Authorization": f"Bearer {st.session_state.access_token}"},
+                timeout=5
+            )
+        except:
+            pass  # 忽略登出请求失败
+        del st.session_state.access_token
+    if 'user' in st.session_state:
+        del st.session_state.user
+    # 清除sessionStorage
+    components.html("""
+    <script>sessionStorage.removeItem('zeeker_access_token');</script>
+    """, height=0)
+    st.rerun()
+
+
 def check_backend_health():
     """检查后端服务状态"""
     try:
@@ -26,7 +130,10 @@ def check_backend_health():
 def get_themes():
     """获取所有主题"""
     try:
-        response = requests.get(f"{API_BASE_URL}/api/themes", timeout=10)
+        headers = {}
+        if 'access_token' in st.session_state:
+            headers["Authorization"] = f"Bearer {st.session_state.access_token}"
+        response = requests.get(f"{API_BASE_URL}/api/themes", headers=headers, timeout=10)
         if response.status_code == 200:
             return response.json()
         return None
@@ -37,9 +144,13 @@ def get_themes():
 def create_theme(name: str, post_length: int = 500):
     """创建新主题"""
     try:
+        headers = {}
+        if 'access_token' in st.session_state:
+            headers["Authorization"] = f"Bearer {st.session_state.access_token}"
         response = requests.post(
             f"{API_BASE_URL}/api/themes",
             json={"name": name, "post_length": post_length},
+            headers=headers,
             timeout=10
         )
         if response.status_code == 200:
@@ -55,7 +166,10 @@ def create_theme(name: str, post_length: int = 500):
 def get_theme(theme_id: int):
     """获取单个主题详情"""
     try:
-        response = requests.get(f"{API_BASE_URL}/api/themes/{theme_id}", timeout=10)
+        headers = {}
+        if 'access_token' in st.session_state:
+            headers["Authorization"] = f"Bearer {st.session_state.access_token}"
+        response = requests.get(f"{API_BASE_URL}/api/themes/{theme_id}", headers=headers, timeout=10)
         if response.status_code == 200:
             return response.json()
         return None
@@ -71,9 +185,13 @@ def update_theme(theme_id: int, name: str = None, post_length: int = None):
             data["name"] = name
         if post_length is not None:
             data["post_length"] = post_length
+        headers = {}
+        if 'access_token' in st.session_state:
+            headers["Authorization"] = f"Bearer {st.session_state.access_token}"
         response = requests.put(
             f"{API_BASE_URL}/api/themes/{theme_id}",
             json=data,
+            headers=headers,
             timeout=10
         )
         if response.status_code == 200:
@@ -84,21 +202,26 @@ def update_theme(theme_id: int, name: str = None, post_length: int = None):
         return None
 
 
-def generate_post(theme_id: int, summary: str, requirements: str = None, post_length: int = None, use_api: bool = False):
+def generate_post(theme_id: int, summary: str, requirements: str = None, post_length: int = None, use_api: bool = False, api_type: str = "glm"):
     """生成帖子"""
     try:
         data = {
             "theme_id": theme_id,
             "summary": summary,
             "requirements": requirements,
-            "use_api": use_api
+            "use_api": use_api,
+            "api_type": api_type
         }
         if post_length:
             data["post_length"] = post_length
 
+        headers = {}
+        if 'access_token' in st.session_state:
+            headers["Authorization"] = f"Bearer {st.session_state.access_token}"
         response = requests.post(
             f"{API_BASE_URL}/api/posts/generate",
             json=data,
+            headers=headers,
             timeout=300
         )
         if response.status_code == 200:
@@ -117,9 +240,13 @@ def get_posts(theme_id: int = None):
         params = {}
         if theme_id:
             params["theme_id"] = theme_id
+        headers = {}
+        if 'access_token' in st.session_state:
+            headers["Authorization"] = f"Bearer {st.session_state.access_token}"
         response = requests.get(
             f"{API_BASE_URL}/api/posts",
             params=params,
+            headers=headers,
             timeout=10
         )
         if response.status_code == 200:
@@ -132,7 +259,10 @@ def get_posts(theme_id: int = None):
 def get_post(post_id: int):
     """获取单个帖子"""
     try:
-        response = requests.get(f"{API_BASE_URL}/api/posts/{post_id}", timeout=10)
+        headers = {}
+        if 'access_token' in st.session_state:
+            headers["Authorization"] = f"Bearer {st.session_state.access_token}"
+        response = requests.get(f"{API_BASE_URL}/api/posts/{post_id}", headers=headers, timeout=10)
         if response.status_code == 200:
             return response.json()
         return None
@@ -143,9 +273,13 @@ def get_post(post_id: int):
 def update_post(post_id: int, content: str):
     """更新帖子内容"""
     try:
+        headers = {}
+        if 'access_token' in st.session_state:
+            headers["Authorization"] = f"Bearer {st.session_state.access_token}"
         response = requests.put(
             f"{API_BASE_URL}/api/posts/{post_id}",
             json={"content": content},
+            headers=headers,
             timeout=10
         )
         if response.status_code == 200:
@@ -159,7 +293,10 @@ def update_post(post_id: int, content: str):
 def delete_post(post_id: int):
     """删除帖子"""
     try:
-        response = requests.delete(f"{API_BASE_URL}/api/posts/{post_id}", timeout=10)
+        headers = {}
+        if 'access_token' in st.session_state:
+            headers["Authorization"] = f"Bearer {st.session_state.access_token}"
+        response = requests.delete(f"{API_BASE_URL}/api/posts/{post_id}", headers=headers, timeout=10)
         return response.status_code == 200
     except Exception:
         return False
@@ -170,7 +307,10 @@ def delete_post(post_id: int):
 def get_corpus():
     """获取语料库列表"""
     try:
-        response = requests.get(f"{API_BASE_URL}/api/corpus", timeout=10)
+        headers = {}
+        if 'access_token' in st.session_state:
+            headers["Authorization"] = f"Bearer {st.session_state.access_token}"
+        response = requests.get(f"{API_BASE_URL}/api/corpus", headers=headers, timeout=10)
         if response.status_code == 200:
             return response.json()
         return None
@@ -181,9 +321,13 @@ def get_corpus():
 def add_to_corpus(title: str, content: str, tags: str = None, note: str = None):
     """添加帖子到语料库"""
     try:
+        headers = {}
+        if 'access_token' in st.session_state:
+            headers["Authorization"] = f"Bearer {st.session_state.access_token}"
         response = requests.post(
             f"{API_BASE_URL}/api/corpus",
             json={"title": title, "content": content, "tags": tags, "note": note},
+            headers=headers,
             timeout=10
         )
         if response.status_code == 200:
@@ -197,7 +341,10 @@ def add_to_corpus(title: str, content: str, tags: str = None, note: str = None):
 def delete_corpus(post_id: int):
     """删除语料库帖子"""
     try:
-        response = requests.delete(f"{API_BASE_URL}/api/corpus/{post_id}", timeout=10)
+        headers = {}
+        if 'access_token' in st.session_state:
+            headers["Authorization"] = f"Bearer {st.session_state.access_token}"
+        response = requests.delete(f"{API_BASE_URL}/api/corpus/{post_id}", headers=headers, timeout=10)
         return response.status_code == 200
     except Exception:
         return False
@@ -206,7 +353,10 @@ def delete_corpus(post_id: int):
 def analyze_style():
     """分析语料库生成风格特征"""
     try:
-        response = requests.post(f"{API_BASE_URL}/api/corpus/analyze-style", timeout=120)
+        headers = {}
+        if 'access_token' in st.session_state:
+            headers["Authorization"] = f"Bearer {st.session_state.access_token}"
+        response = requests.post(f"{API_BASE_URL}/api/corpus/analyze-style", headers=headers, timeout=120)
         if response.status_code == 200:
             return response.json()
         return None
@@ -218,7 +368,10 @@ def analyze_style():
 def get_style_profile():
     """获取风格特征"""
     try:
-        response = requests.get(f"{API_BASE_URL}/api/corpus/style-profile", timeout=10)
+        headers = {}
+        if 'access_token' in st.session_state:
+            headers["Authorization"] = f"Bearer {st.session_state.access_token}"
+        response = requests.get(f"{API_BASE_URL}/api/corpus/style-profile", headers=headers, timeout=10)
         if response.status_code == 200:
             return response.json()
         return None
@@ -232,20 +385,6 @@ def update_summary_count():
 
 
 def main():
-    st.title("🚗 用车总结生成器")
-    st.markdown("先创建主题，然后在主题下生成帖子")
-
-    # 检查后端状态
-    health = check_backend_health()
-    if health is None:
-        st.warning("⚠️ 后端服务未连接，请先启动FastAPI服务: `uvicorn app.main:app --reload`")
-        st.stop()
-
-    if not health.get("ai_connected"):
-        st.warning("⚠️ Ollama服务未连接，请确保Ollama服务正在运行")
-        st.info(f"当前配置模型: {health.get('config', {}).get('model')}")
-        st.stop()
-
     # 初始化session state
     if "selected_theme_id" not in st.session_state:
         st.session_state.selected_theme_id = None
@@ -258,6 +397,80 @@ def main():
     if "summary_text" not in st.session_state:
         st.session_state.summary_text = ""
 
+    # 检查登录状态
+    if not check_login_status():
+        # 显示登录界面
+        st.title("🚗 用车总结生成器")
+        st.markdown("请登录或注册以使用所有功能")
+
+        # 创建登录表单
+        with st.form("login_form"):
+            st.subheader("🔐 用户登录")
+
+            col1, col2 = st.columns([1, 1])
+
+            with col1:
+                phone = st.text_input(
+                    "手机号",
+                    placeholder="请输入11位手机号",
+                    max_chars=11
+                )
+
+            with col2:
+                password = st.text_input(
+                    "密码",
+                    type="password",
+                    placeholder="请输入密码"
+                )
+
+            submitted = st.form_submit_button("登录", type="primary")
+
+            if submitted:
+                if not phone or not password:
+                    st.error("请填写完整信息")
+                else:
+                    result = login(phone, password)
+                    if result["success"]:
+                        st.success("登录成功！")
+                        st.rerun()
+                    else:
+                        st.error(result["error"])
+
+        # 显示注册提示
+        st.markdown("---")
+        st.info("还没有账号？请先联系管理员注册")
+
+        # 检查后端状态
+        health = check_backend_health()
+        if health is None:
+            st.warning("⚠️ 后端服务未连接，请先启动FastAPI服务")
+        else:
+            st.success("✅ 后端服务已连接")
+
+        st.stop()
+
+    # 已登录用户界面
+    # 检查后端状态
+    health = check_backend_health()
+    if health is None:
+        st.warning("⚠️ 后端服务未连接，请先启动FastAPI服务: `uvicorn app.main:app --reload`")
+        st.stop()
+
+    if not health.get("ai_connected"):
+        st.warning("⚠️ Ollama服务未连接，请确保Ollama服务正在运行")
+        st.info(f"当前配置模型: {health.get('config', {}).get('model')}")
+        st.stop()
+
+    # 显示用户信息
+    user = st.session_state.user
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        user_name = user.get('nickname') or user.get('phone') or '用户'
+        st.header(f"👋 欢迎，{user_name}")
+    with col2:
+        if st.button("🚪 退出登录", key="logout_btn"):
+            logout()
+
     # 处理清空表单标志
     if st.session_state.clear_corpus_form:
         st.session_state.corpus_title = ""
@@ -266,7 +479,7 @@ def main():
         st.session_state.corpus_note = ""
         st.session_state.clear_corpus_form = False
 
-    # 侧边栏 - 标签页
+    # 侧边栏
     with st.sidebar:
         tab1, tab2 = st.tabs(["📂 主题", "📚 语料库"])
 
@@ -416,23 +629,25 @@ def main():
             with col_model1:
                 model_option = st.radio(
                     "选择生成模型",
-                    options=["本地模型 (Ollama)", "云端API (GLM-4.7)", "云端API (通义千问)"],
+                    options=["本地模型 (Ollama)", "云端API (GLM-4.7)", "云端API (MiniMax M2.7)"],
                     index=0,
                     help="本地模型免费但较慢，云端API需要配置API Key但更快更稳定"
                 )
                 use_api = model_option != "本地模型 (Ollama)"
-                api_type = "glm" if model_option == "云端API (GLM-4.7)" else "qwen"
+                api_type = "glm" if model_option == "云端API (GLM-4.7)" else "minmax"
 
             with col_model2:
                 if use_api:
-                    if health.get("api_configured"):
-                        model_name = health.get('api_model', '未知')
-                        st.success(f"✅ API已配置\n模型: {model_name}")
-                    else:
-                        if api_type == "glm":
-                            st.warning("⚠️ 未配置API Key\n请在.env文件中设置GLM_API_KEY")
+                    if api_type == "glm":
+                        if health.get("glm_configured"):
+                            st.success(f"✅ GLM API已配置\n模型: {health.get('glm_model', '未知')}")
                         else:
-                            st.warning("⚠️ 未配置API Key\n请在.env文件中设置QWEN_API_KEY")
+                            st.warning("⚠️ 未配置API Key\n请在.env文件中设置GLM_API_KEY")
+                    else:
+                        if health.get("minmax_configured"):
+                            st.success(f"✅ MiniMax API已配置\n模型: {health.get('minmax_model', '未知')}")
+                        else:
+                            st.warning("⚠️ 未配置API Key\n请在.env文件中设置MINMAX_API_KEY")
                 else:
                     if health.get("ai_connected"):
                         st.success(f"✅ 本地模型已连接\n模型: {health.get('config', {}).get('ollama_model')}")
@@ -499,14 +714,18 @@ def main():
                 if not summary:
                     st.error("请输入内容提要")
                 else:
-                    model_name = "通义千问API" if use_api else "本地模型"
+                    if use_api:
+                        model_name = "MiniMax API" if api_type == "minmax" else "GLM API"
+                    else:
+                        model_name = "本地模型"
                     with st.spinner(f"正在使用{model_name}润色生成...（目标{post_length}字）"):
                         result = generate_post(
                             theme_id=st.session_state.selected_theme_id,
                             summary=summary,
                             requirements=requirements if requirements else None,
                             post_length=post_length,
-                            use_api=use_api
+                            use_api=use_api,
+                            api_type=api_type
                         )
                         if result:
                             st.success("帖子生成成功！")

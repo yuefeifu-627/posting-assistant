@@ -165,12 +165,13 @@ class PluginManager:
                 base_url=getattr(settings, "glm_base_url", "https://open.bigmodel.cn/api/paas/v4"),
             )
 
-        # 初始化 Qwen（如果有 API Key）
-        if hasattr(settings, "qwen_api_key") and settings.qwen_api_key and "qwen" in self._providers:
+        # 初始化 MiniMax（如果有 API Key）
+        if hasattr(settings, "minmax_api_key") and settings.minmax_api_key and "minmax" in self._providers:
             self.get_provider_instance(
-                "qwen",
-                api_key=settings.qwen_api_key,
-                model=getattr(settings, "qwen_model", "qwen-plus"),
+                "minmax",
+                api_key=settings.minmax_api_key,
+                model=getattr(settings, "minmax_model", "MinMax-Text-01"),
+                base_url=getattr(settings, "minmax_base_url", "https://api.minimax.chat/v1"),
             )
 
         logger.info(f"已初始化 {len(self._instances)} 个 Provider 实例")
