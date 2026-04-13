@@ -40,7 +40,10 @@
       "Bash(python -m pytest tests/test_di_container.py::TestDIContainer::test_singleton_registration -v --tb=short)",
       "Bash(uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload)",
       "Bash(curl http://localhost:8000/health)",
-      "Bash(pkill -f uvicorn)"
+      "Bash(pkill -f uvicorn)",
+      "Bash(git rm:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)"
     ]
   }
 }
