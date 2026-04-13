@@ -1,23 +1,13 @@
 """依赖注入容器实现"""
 
 from typing import Type, TypeVar, Callable, Any, Dict, Optional
-from functools import lru_cache
-from sqlalchemy.orm import Session
 
-from app.database import get_db
-from app.config import get_settings
 from app.di.interfaces import (
-    IThemeRepository,
-    IPostRepository,
-    ICorpusRepository,
     IThemeService,
     IPostService,
     ICorpusService,
     IAIService,
 )
-from app.repositories.theme_repo import ThemeRepository
-from app.repositories.post_repo import PostRepository
-from app.repositories.corpus_repo import CorpusRepository
 from app.services.theme_service import ThemeService
 from app.services.post_service import PostService
 from app.services.corpus_service import CorpusService
@@ -55,15 +45,11 @@ class DIContainer:
 
     def _register_defaults(self):
         """注册默认服务"""
-        # 单例服务
+        # AI 服务（单例，无 db 依赖）
         self.register_singleton(IAIService, AIService)
 
-        # 工厂函数（每次创建新实例）
-        self.register_factory(IThemeRepository, lambda: ThemeRepository(next(get_db())))
-        self.register_factory(IPostRepository, lambda: PostRepository(next(get_db())))
-        self.register_factory(ICorpusRepository, lambda: CorpusRepository(next(get_db())))
-
-        # 服务（需要数据库会话）
+        # 服务工厂：接收 db session 参数（由 FastAPI Depends(get_db) 注入）
+        # 注意：Repository 在 Service 内部创建，不通过 DI 容器管理 session
         self.register_factory(
             IThemeService,
             lambda db: ThemeService(db)

@@ -9,7 +9,7 @@ from app.config import get_settings
 from app.database import init_db
 from app.logger import setup_logging, get_logger
 from app.exceptions import AppException
-from app.routers import posts, themes, corpus
+from app.routers import posts, themes, auth, corpus_user
 from app.dependencies import get_ai_service
 from app.di import IAIService
 
@@ -61,7 +61,8 @@ async def app_exception_handler(request: Request, exc: AppException):
 # 注册路由
 app.include_router(themes.router)
 app.include_router(posts.router)
-app.include_router(corpus.router)
+app.include_router(auth.router)
+app.include_router(corpus_user.router)
 
 
 @app.get("/")
@@ -87,8 +88,10 @@ async def health_check(ai_service: IAIService = Depends(get_ai_service)):
         "status": "healthy",
         "ai_connected": ai_connected,
         "available_models": models,
-        "api_configured": api_config["api_key_configured"],
-        "api_model": api_config["api_model"],
+        "glm_configured": api_config["glm_configured"],
+        "glm_model": api_config["glm_model"],
+        "minmax_configured": api_config["minmax_configured"],
+        "minmax_model": api_config["minmax_model"],
         "providers": provider_info,
         "plugins": plugin_metadata,
         "config": {

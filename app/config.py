@@ -17,9 +17,10 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen3.5:9b"
 
-    # 通义千问 API
-    qwen_api_key: str = ""
-    qwen_model: str = "qwen-plus"
+    # MiniMax API
+    minmax_api_key: str = ""
+    minmax_model: str = "MinMax-Text-01"
+    minmax_base_url: str = "https://api.minimax.chat/v1"
 
     # GLM API
     glm_api_key: str = ""

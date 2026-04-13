@@ -6,7 +6,7 @@ from app.services.ai.base import AIProvider, ProviderMetadata
 from app.services.ai.plugin_manager import get_plugin_manager
 from app.services.ai.ollama_provider import OllamaProvider
 from app.services.ai.glm_provider import GLMProvider
-from app.services.ai.qwen_provider import QwenProvider
+from app.services.ai.minmax_provider import MiniMaxProvider
 
 
 def create_provider(provider_type: str, settings: Settings) -> AIProvider:
@@ -30,8 +30,8 @@ def create_provider(provider_type: str, settings: Settings) -> AIProvider:
         manager.register(OllamaProvider)
     if not manager.get_provider_class("glm"):
         manager.register(GLMProvider)
-    if not manager.get_provider_class("qwen"):
-        manager.register(QwenProvider)
+    if not manager.get_provider_class("minmax"):
+        manager.register(MiniMaxProvider)
 
     # 根据类型创建实例
     if provider_type == "ollama":
@@ -47,11 +47,12 @@ def create_provider(provider_type: str, settings: Settings) -> AIProvider:
             model=settings.glm_model,
             base_url=settings.glm_base_url,
         )
-    elif provider_type == "qwen":
+    elif provider_type == "minmax":
         return manager.get_provider_instance(
-            "qwen",
-            api_key=settings.qwen_api_key,
-            model=settings.qwen_model,
+            "minmax",
+            api_key=settings.minmax_api_key,
+            model=settings.minmax_model,
+            base_url=settings.minmax_base_url,
         )
     else:
         raise ValueError(f"未知的 AI 提供者类型: {provider_type}")
@@ -64,5 +65,5 @@ __all__ = [
     "get_plugin_manager",
     "OllamaProvider",
     "GLMProvider",
-    "QwenProvider",
+    "MiniMaxProvider",
 ]

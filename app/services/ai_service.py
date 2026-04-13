@@ -33,12 +33,12 @@ class AIService(IAIService):
         """注册内置插件"""
         from app.services.ai.ollama_provider import OllamaProvider
         from app.services.ai.glm_provider import GLMProvider
-        from app.services.ai.qwen_provider import QwenProvider
+        from app.services.ai.minmax_provider import MiniMaxProvider
 
         # 使用 override=True 避免重复注册错误
         self.plugin_manager.register(OllamaProvider, override=True)
         self.plugin_manager.register(GLMProvider, override=True)
-        self.plugin_manager.register(QwenProvider, override=True)
+        self.plugin_manager.register(MiniMaxProvider, override=True)
 
     def _get_provider(self, use_api: bool = False, api_type: str = "glm"):
         """
@@ -46,7 +46,7 @@ class AIService(IAIService):
 
         Args:
             use_api: 是否使用云端 API
-            api_type: API 类型 (glm/qwen)
+            api_type: API 类型 (glm/minmax)
 
         Returns:
             AI Provider 实例
@@ -85,7 +85,7 @@ class AIService(IAIService):
             requirements: 主办方的任务要求
             post_length: 发帖字数限制
             use_api: 是否使用云端API
-            api_type: 云端API类型 (glm/qwen)
+            api_type: 云端API类型 (glm/minmax)
             style_profile: 风格特征描述
         """
         prompt = self._build_generation_prompt(theme, summary, requirements, post_length, style_profile)
@@ -100,8 +100,8 @@ class AIService(IAIService):
 
         logger.info(f"分析写作风格: {len(posts)}篇帖子")
 
-        # 优先级：GLM > Qwen > Ollama
-        provider = self.plugin_manager.get_best_provider(["glm", "qwen", "ollama"])
+        # 优先级：MiniMax > GLM > Ollama
+        provider = self.plugin_manager.get_best_provider(["minmax", "glm", "ollama"])
 
         if provider is None:
             logger.error("没有可用的 AI 提供者")
@@ -139,12 +139,12 @@ class AIService(IAIService):
     def check_api_config(self) -> dict:
         """检查 API 配置状态"""
         s = get_settings()
-        if s.glm_api_key:
-            return {"api_key_configured": True, "api_model": s.glm_model}
-        elif s.qwen_api_key:
-            return {"api_key_configured": True, "api_model": s.qwen_model}
-        else:
-            return {"api_key_configured": False, "api_model": None}
+        return {
+            "glm_configured": bool(s.glm_api_key),
+            "glm_model": s.glm_model if s.glm_api_key else None,
+            "minmax_configured": bool(s.minmax_api_key),
+            "minmax_model": s.minmax_model if s.minmax_api_key else None,
+        }
 
     def get_provider_info(self) -> Dict[str, dict]:
         """获取所有 provider 的状态信息"""

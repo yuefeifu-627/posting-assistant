@@ -98,6 +98,7 @@ class GeneratePostRequest(BaseModel):
     requirements: Optional[str] = Field(None, description="主办方的任务要求")
     post_length: Optional[int] = Field(None, description="发帖字数")
     use_api: bool = Field(default=False, description="是否使用云端API")
+    api_type: str = Field(default="glm", description="API类型 (glm/minmax)")
 
     @field_validator('theme_id')
     @classmethod
@@ -372,3 +373,77 @@ class UserPostListResponse(BaseModel):
     """用户帖子列表响应模型"""
     posts: List[UserPostResponse]
     total: int
+
+
+# === 用户认证相关 ===
+
+class UserRegister(BaseModel):
+    """用户注册模型"""
+    phone: str = Field(..., description="手机号")
+    password: str = Field(..., description="密码")
+    nickname: Optional[str] = Field(None, description="昵称")
+    email: Optional[str] = Field(None, description="邮箱")
+
+    @field_validator('phone')
+    @classmethod
+    def validate_phone(cls, v: str) -> str:
+        """验证手机号"""
+        import re
+        if not re.match(r'^1[3-9]\d{9}$', v):
+            raise ValueError("请输入有效的手机号")
+        return v
+
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        """验证密码"""
+        if len(v) < 6:
+            raise ValueError("密码长度不能少于6位")
+        if len(v) > 20:
+            raise ValueError("密码长度不能超过20位")
+        return v
+
+    @field_validator('nickname')
+    @classmethod
+    def validate_nickname(cls, v: Optional[str]) -> Optional[str]:
+        """验证昵称"""
+        if v is not None:
+            if len(v) < 2 or len(v) > 20:
+                raise ValueError("昵称长度必须在2-20个字符之间")
+        return v
+
+
+class UserLogin(BaseModel):
+    """用户登录模型"""
+    phone: str = Field(..., description="手机号")
+    password: str = Field(..., description="密码")
+
+    @field_validator('phone')
+    @classmethod
+    def validate_phone(cls, v: str) -> str:
+        """验证手机号"""
+        import re
+        if not re.match(r'^1[3-9]\d{9}$', v):
+            raise ValueError("请输入有效的手机号")
+        return v
+
+
+class UserResponse(BaseModel):
+    """用户响应模型"""
+    id: int
+    phone: str
+    nickname: Optional[str]
+    email: Optional[str]
+    is_active: bool
+    is_verified: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TokenResponse(BaseModel):
+    """令牌响应模型"""
+    access_token: str
+    token_type: str
+    expires_in: int  # 过期时间（秒）
